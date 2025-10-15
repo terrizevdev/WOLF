@@ -16,13 +16,13 @@ const moment = require('moment-timezone')
 const PhoneNumber = require('awesome-phonenumber')
 const { imageToWebp, videoToWebp, writeExifImg, writeExifVid } = require('./lib/exif')
 const { smsg, isUrl, generateMessageTag, getBuffer, getSizeMedia, fetch, await, sleep, reSize } = require('./lib/myfunc')
-const { default: XeonBotIncConnect, delay, PHONENUMBER_MCC, makeCacheableSignalKeyStore, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, generateForwardMessageContent, prepareWAMessageMedia, generateWAMessageFromContent, generateMessageID, downloadContentFromMessage, makeInMemoryStore, jidDecode, proto, Browsers } = require("@whiskeysockets/baileys")
+const { default: XeonBotIncConnect, delay, makeCacheableSignalKeyStore, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, generateForwardMessageContent, prepareWAMessageMedia, generateWAMessageFromContent, generateMessageID, downloadContentFromMessage, jidDecode, proto, Browsers } = require("@whiskeysockets/baileys")
 const NodeCache = require("node-cache")
 const Pino = require("pino")
 const readline = require("readline")
 const { parsePhoneNumber } = require("libphonenumber-js")
 const makeWASocket = require("@whiskeysockets/baileys").default
-
+const { makeInMemoryStore } = require('./lib/store/')
 const store = makeInMemoryStore({
     logger: pino().child({
         level: 'silent',
@@ -125,36 +125,56 @@ const {  state, saveCreds } =await useMultiFileAuthState(`./session`)
     // login use pairing code
    // source code https://github.com/WhiskeySockets/Baileys/blob/master/Example/example.ts#L61
    if (pairingCode && !XeonBotInc.authState.creds.registered) {
-      if (useMobile) throw new Error('Cannot use pairing code with mobile api')
+    if (useMobile) throw new Error('Cannot use pairing code with mobile api')
 
-      let phoneNumber
-      if (!!phoneNumber) {
-         phoneNumber = phoneNumber.replace(/[^0-9]/g, '')
-
-         if (!Object.keys(PHONENUMBER_MCC).some(v => phoneNumber.startsWith(v))) {
-            console.log(chalk.bgBlack(chalk.redBright("Start with country code of your WhatsApp Number, Example : +916909137213")))
+    let phoneNumber
+    if (!!phoneNumber) {
+        phoneNumber = phoneNumber.replace(/[^0-9]/g, '')
+        
+        // Validate phone number using awesome-phonenumber
+        try {
+            const pn = new PhoneNumber(phoneNumber)
+            if (!pn.isValid()) {
+                console.log(chalk.bgBlack(chalk.redBright("Please enter a valid WhatsApp number with country code, Example: +916909137213")))
+                process.exit(0)
+            }
+        } catch (err) {
+            console.log(chalk.bgBlack(chalk.redBright("Invalid phone number format")))
             process.exit(0)
-         }
-      } else {
-         phoneNumber = await question(chalk.bgBlack(chalk.greenBright(`Please type your WhatsApp number 😍\nFor example: +916909137213 : `)))
-         phoneNumber = phoneNumber.replace(/[^0-9]/g, '')
+        }
+    } else {
+        phoneNumber = await question(chalk.bgBlack(chalk.greenBright(`Please type your WhatsApp number 😍\nFor example: +916909137213 : `)))
+        phoneNumber = phoneNumber.replace(/[^0-9]/g, '')
 
-         // Ask again when entering the wrong number
-         if (!Object.keys(PHONENUMBER_MCC).some(v => phoneNumber.startsWith(v))) {
-            console.log(chalk.bgBlack(chalk.redBright("Start with country code of your WhatsApp Number, Example : +916909137213")))
+        // Validate using awesome-phonenumber
+        try {
+            const pn = new PhoneNumber(phoneNumber)
+            if (!pn.isValid()) {
+                console.log(chalk.bgBlack(chalk.redBright("Please enter a valid WhatsApp number with country code, Example: +916909137213")))
+                
+                phoneNumber = await question(chalk.bgBlack(chalk.greenBright(`Please type your WhatsApp number 😍\nFor example: +916909137213 : `)))
+                phoneNumber = phoneNumber.replace(/[^0-9]/g, '')
+                
+                // Validate again
+                const pn2 = new PhoneNumber(phoneNumber)
+                if (!pn2.isValid()) {
+                    console.log(chalk.bgBlack(chalk.redBright("Invalid phone number. Please restart the bot.")))
+                    process.exit(0)
+                }
+            }
+        } catch (err) {
+            console.log(chalk.bgBlack(chalk.redBright("Invalid phone number format. Please restart the bot.")))
+            process.exit(0)
+        }
+        rl.close()
+    }
 
-            phoneNumber = await question(chalk.bgBlack(chalk.greenBright(`Please type your WhatsApp number 😍\nFor example: +916909137213 : `)))
-            phoneNumber = phoneNumber.replace(/[^0-9]/g, '')
-            rl.close()
-         }
-      }
-
-      setTimeout(async () => {
-         let code = await XeonBotInc.requestPairingCode(phoneNumber)
-         code = code?.match(/.{1,4}/g)?.join("-") || code
-         console.log(chalk.black(chalk.bgGreen(`Your Pairing Code : `)), chalk.black(chalk.white(code)))
-      }, 3000)
-   }
+    setTimeout(async () => {
+        let code = await XeonBotInc.requestPairingCode(phoneNumber)
+        code = code?.match(/.{1,4}/g)?.join("-") || code
+        console.log(chalk.black(chalk.bgGreen(`Your Pairing Code : `)), chalk.black(chalk.white(code)))
+    }, 3000)
+}
    
    XeonBotInc.ev.on('connection.update', async (update) => {
 	const {
