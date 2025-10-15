@@ -39,6 +39,7 @@
         "javascript-obfuscator": "^4.0.0",
         "jimp": "^0.16.13",
         "jsdom": "^22.1.0",
+        "node-cache": "^5.1.2",
         "lodash": "^4.17.21",
         "mal-scraper": "^2.11.4",
         "mathjs": "^11.3.0",
